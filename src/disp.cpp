@@ -6,6 +6,7 @@
 
 #include "stdafx.h"
 #include "disp.h"
+#include "async.h"
 
 Persistent<ObjectTemplate> DispObject::inst_template;
 Persistent<FunctionTemplate> DispObject::clazz_template;
@@ -427,6 +428,9 @@ void DispObject::NodeGet(Local<String> name, const PropertyCallbackInfo<Value>& 
 		if (clazz.IsEmpty()) args.GetReturnValue().SetNull();
 		else args.GetReturnValue().Set(clazz_template.Get(isolate)->GetFunction());
 	}
+	else if (_wcsicmp(id, L"__async") == 0) {
+		args.GetReturnValue().Set(FunctionTemplate::New(isolate, NodeAsync, args.This())->GetFunction());
+	}
 	else if (_wcsicmp(id, L"valueOf") == 0) {
 		args.GetReturnValue().Set(FunctionTemplate::New(isolate, NodeValueOf, args.This())->GetFunction());
 	}
@@ -482,6 +486,41 @@ void DispObject::NodeCall(const FunctionCallbackInfo<Value> &args) {
 	}
 	NODE_DEBUG_FMT("DispObject '%S' call", self->name.c_str());
     self->call(isolate, args);
+}
+
+void DispObject::NodeAsync(const FunctionCallbackInfo<Value> &args) {
+	Isolate *isolate = args.GetIsolate();
+	DispObject *self = DispObject::Unwrap<DispObject>(args.This());
+	DispInfoPtr disp;
+	if (self) disp = self->disp;
+	if (!disp) {
+		isolate->ThrowException(DispErrorInvalid(isolate));
+		return;
+	}
+
+	if (!job_processor) {
+		job_processor.reset(new job_processor_t());
+		job_processor->start();
+	}
+
+	Local<Promise::Resolver> promise(Promise::Resolver::New(isolate));
+	args.GetReturnValue().Set(promise->GetPromise());
+	NODE_DEBUG_FMT("DispObject '%S' async", self->name.c_str());
+
+	job_ptr job(new job_t(self->disp->ptr, self->dispid, DISPATCH_METHOD));
+	job->promise.Reset(isolate, promise);
+	job->args.assign(isolate, args);
+	job->on_result = [](const job_t &job) {
+
+		// It`s a NULL
+		auto isolate = v8::Isolate::GetCurrent();
+
+		v8::HandleScope scope(isolate);
+		Local<Promise::Resolver> promise = job.promise.Get(isolate);
+		if SUCCEEDED(job.hrcode) promise->Resolve(Variant2Value(isolate, job.result, true));
+		else promise->Reject(Win32Error(isolate, job.hrcode, L"Async Invocation"));
+	};
+	job_processor->push(job);
 }
 
 void DispObject::NodeValueOf(const FunctionCallbackInfo<Value>& args) {

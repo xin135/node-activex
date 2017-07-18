@@ -259,14 +259,18 @@ inline bool v8val2bool(const Local<Value> &v, bool def) {
 class VarArguments {
 public:
 	std::vector<CComVariant> items;
+	VarArguments() {}
 	VarArguments(Isolate *isolate, Local<Value> value) {
 		items.resize(1);
 		Value2Variant(isolate, value, items[0]);
 	}
 	VarArguments(Isolate *isolate, const FunctionCallbackInfo<Value> &args) {
+		assign(isolate, args);
+	}
+	void assign(Isolate *isolate, const FunctionCallbackInfo<Value> &args) {
 		int argcnt = args.Length();
 		items.resize(argcnt);
-		for (int i = 0; i < argcnt; i ++)
+		for (int i = 0; i < argcnt; i++)
 			Value2Variant(isolate, args[argcnt - i - 1], items[i]);
 	}
 };

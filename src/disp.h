@@ -167,6 +167,7 @@ private:
 	static void NodeGetByIndex(uint32_t index, const PropertyCallbackInfo<Value> &args);
 	static void NodeSetByIndex(uint32_t index, Local<Value> value, const PropertyCallbackInfo<Value> &args);
 	static void NodeCall(const FunctionCallbackInfo<Value> &args);
+	static void NodeAsync(const FunctionCallbackInfo<Value> &args);
 
 protected:
 	bool release();

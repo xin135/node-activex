@@ -6,6 +6,9 @@
 
 #include "stdafx.h"
 #include "disp.h"
+#include "async.h"
+
+job_processor_ptr job_processor;
 
 //----------------------------------------------------------------------------------
 
@@ -21,13 +24,13 @@ namespace node_activex {
 //----------------------------------------------------------------------------------
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ulReason, LPVOID lpReserved) {
-	
     switch (ulReason) {
     case DLL_PROCESS_ATTACH:
         CoInitialize(0);
         break;
     case DLL_PROCESS_DETACH:
-        CoUninitialize();
+		if (job_processor) job_processor->stop();
+		CoUninitialize();
         break;
     case DLL_THREAD_ATTACH:
         break;
