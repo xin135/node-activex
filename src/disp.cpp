@@ -502,25 +502,14 @@ void DispObject::NodeAsync(const FunctionCallbackInfo<Value> &args) {
 		job_processor.reset(new job_processor_t());
 		job_processor->start();
 	}
-
-	Local<Promise::Resolver> promise(Promise::Resolver::New(isolate));
-	args.GetReturnValue().Set(promise->GetPromise());
-	NODE_DEBUG_FMT("DispObject '%S' async", self->name.c_str());
-
-	job_ptr job(new job_t(self->disp->ptr, self->dispid, DISPATCH_METHOD));
-	job->promise.Reset(isolate, promise);
+	job_ptr job(new job_t(isolate, self->disp->ptr, self->dispid, DISPATCH_METHOD));
 	job->args.assign(isolate, args);
-	job->on_result = [](const job_t &job) {
-
-		// It`s a NULL
-		auto isolate = v8::Isolate::GetCurrent();
-
-		v8::HandleScope scope(isolate);
-		Local<Promise::Resolver> promise = job.promise.Get(isolate);
-		if SUCCEEDED(job.hrcode) promise->Resolve(Variant2Value(isolate, job.result, true));
-		else promise->Reject(Win32Error(isolate, job.hrcode, L"Async Invocation"));
-	};
 	job_processor->push(job);
+
+	auto resolver = job->promise.Get(isolate);
+	args.GetReturnValue().Set(resolver->GetPromise());
+	NODE_DEBUG_FMT("DispObject '%S' async", self->name.c_str());
+	//resolver->Resolve(Null(isolate));
 }
 
 void DispObject::NodeValueOf(const FunctionCallbackInfo<Value>& args) {

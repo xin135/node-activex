@@ -31,6 +31,7 @@
 
 // Node JS headers
 #include <v8.h>
+#include <uv.h>
 #include <node.h>
 #include <node_version.h>
 #include <node_object_wrap.h>
