@@ -265,28 +265,30 @@ class VarArguments {
 public:
 	std::vector<CComVariant> items;
 	VarArguments() {}
-	VarArguments(Isolate *isolate, Local<Value> value) {
+    VarArguments(Isolate *isolate, Local<Value> value) : isolate_(isolate) {
 		items.resize(1);
 		Value2Variant(isolate, value, items[0]);
 	}
-	VarArguments(Isolate *isolate, const FunctionCallbackInfo<Value> &args) {
+    VarArguments(Isolate *isolate, const FunctionCallbackInfo<Value> &args) : isolate_(isolate) {
 		int argcnt = args.Length();
         if (argcnt == 2 && args[0]->IsArray() && args[1]->IsArray()) {
-          v8::Local<v8::Array> real_args = args[0].As<v8::Array>();
+          real_args = args[0].As<v8::Array>();
           v8::Local<v8::Array> ref_indexes = args[1].As<v8::Array>();
           argcnt = real_args->Length();
           items.resize(argcnt);
           for (int i = 0; i < argcnt; i++) {
             Value2Variant(isolate, real_args->Get(argcnt - i - 1), items[i]);
           }
+          ref_items = items;
           int ref_count = ref_indexes->Length();
           for (int i = 0; i < ref_count; ++i) {
             if (ref_indexes->Get(i)->IsInt32()) {
               int index = ref_indexes->Get(i)->Int32Value();
               if (index >= 0 && index < argcnt) {
+                indexes.push_back(index);
                 CComVariant& item = items[argcnt - index - 1];
-                ref_items.push_back(item);
-                CComVariant& ref_item = ref_items.back();
+                CComVariant& ref_item = ref_items[argcnt - index - 1];
+                printf("debug: %d\n", item.vt);
                 switch (item.vt) {
                 case VT_BOOL:
                   item.vt |= VT_BYREF;
@@ -294,8 +296,8 @@ public:
                   break;
 
                 case VT_UI4:
-                  item.vt |= VT_BYREF;
-                  item.pulVal = &ref_item.ulVal;
+                  item.vt = VT_I4 | VT_BYREF;
+                  item.plVal = &ref_item.lVal;
                   break;
 
                 case VT_I4:
@@ -327,26 +329,34 @@ public:
 		
 	}
     ~VarArguments() {
-        // release the strings
-      for (size_t i = 0; i < items.size(); ++i) {
-        CComVariant& item = items[i];
-        if (item.vt & VT_BSTR) {
-          if (item.vt & VT_BYREF) {
-            if (nullptr != item.pbstrVal && *item.pbstrVal != 0) {
-              SysFreeString(*item.pbstrVal);
-            }
-          } else {
-            if (item.bstrVal != 0) {
-              SysFreeString(item.bstrVal);
-            }
-          }
-          
+        int argcnt = ref_items.size();
+        for (size_t i = 0; i < indexes.size(); ++i) {
+          int index = indexes[i];
+          real_args->Set(index, Variant2Value(isolate_, items[argcnt - index - 1]));
         }
-      }
+        // release the strings
+        for (size_t i = 0; i < items.size(); ++i) {
+          CComVariant& item = items[i];
+          if (item.vt & VT_BSTR) {
+            if (item.vt & VT_BYREF) {
+              if (nullptr != item.pbstrVal && *item.pbstrVal != 0) {
+                SysFreeString(*item.pbstrVal);
+              }
+            } else {
+              if (item.bstrVal != 0) {
+                SysFreeString(item.bstrVal);
+              }
+            }
+          
+          }
+        }
     }
 
 private:
+    Isolate *isolate_;
+    v8::Local<v8::Array> real_args;
     std::vector<CComVariant> ref_items;
+    std::vector<int> indexes;
 };
 
 class NodeArguments {
