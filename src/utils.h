@@ -288,7 +288,6 @@ public:
                 indexes.push_back(index);
                 CComVariant& item = items[argcnt - index - 1];
                 CComVariant& ref_item = ref_items[argcnt - index - 1];
-                printf("debug: %d\n", item.vt);
                 switch (item.vt) {
                 case VT_BOOL:
                   item.vt |= VT_BYREF;
@@ -312,6 +311,9 @@ public:
 
                 case VT_BSTR:
                   item.vt |= VT_BYREF;
+                  if (0 != item.bstrVal) {
+                    SysFreeString(item.bstrVal);
+                  }
                   item.pbstrVal = &ref_item.bstrVal;
                   break;
 
@@ -333,22 +335,6 @@ public:
         for (size_t i = 0; i < indexes.size(); ++i) {
           int index = indexes[i];
           real_args->Set(index, Variant2Value(isolate_, items[argcnt - index - 1]));
-        }
-        // release the strings
-        for (size_t i = 0; i < items.size(); ++i) {
-          CComVariant& item = items[i];
-          if (item.vt & VT_BSTR) {
-            if (item.vt & VT_BYREF) {
-              if (nullptr != item.pbstrVal && *item.pbstrVal != 0) {
-                SysFreeString(*item.pbstrVal);
-              }
-            } else {
-              if (item.bstrVal != 0) {
-                SysFreeString(item.bstrVal);
-              }
-            }
-          
-          }
         }
     }
 
